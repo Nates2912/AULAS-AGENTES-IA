@@ -4,7 +4,11 @@
 
 import os
 import streamlit as st
-from crewai import Agent, Task, Crew, Process, LLM
+from crewai import Agent, Task, Crew, Process, LLM #LLM é a sigla para "Large Language Model" (Grande Modelo de Linguagem)  
+                                                   #um tipo de inteligência artificial treinado em grandes volumes de dados de texto
+                                                   #para compreender
+                                                   #gerar e manipular texto de forma humana
+                                                   #quantos mais parametros, mais "raciocinio" a IA tem
 
 #Agentes para estudo
 
@@ -15,7 +19,7 @@ tema = st.text_input("Terra de estudo", placeholder="Ex.:Algoritimos") #enquanto
 objetivo = st.text_input("Objetivo", placeholder="Ex.: Entender Conceitos")
 
 executar= st.button("Gerar material")
-api_key = "chave api" #se pega no groq 
+api_key = "" #se pega no groq 
 
 if executar:
     llm = LLM(
