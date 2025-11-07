@@ -88,3 +88,44 @@ if executar:
         agent=agente_exemplos,
         expected_output="Lista numerada (1-4) em Markdown com exemplos curtos e completos"
     )
+    t_exercicios = Task(
+        description=(
+            "EXERCÍCIOS: Crie 4 exercícios simples sobre o {tema} em PT-BR."
+            "Varie formatos e não inclua respostas."
+            "Entregue lista numerada (1-4) em Markdown"
+            
+        ),
+        agent=agente_exercicios,
+        expected_output="Lista numerada (1-4) em Markdown com exercícios simples, sem respostas"
+    )
+    t_gabarito = Task(
+        description=(
+            "GABARITO: Com base nos EXERCÍCIOS fornecidos no contexto, produza as respostas corretas."
+            "Para cada item, de: \n"
+            "- Resposta: (letra, valor, solução)\n"
+            "-Comentários: justificativa breve e direta (1-2), citando o conceito-chave"
+            "Formato: lista numerada (1 a 3) em Markdown."
+        ),
+        agent=agente_gabarito,
+        expected_output="Lista numerada (1-3) em Markdown com resposta e comentário por exercício"
+        context=[t_exercicios]
+    )
+
+    #definindo equipe
+    agents = [agente_resumo, agente_exemplos, agente_exercicios, agente_gabarito]
+    tasks = [t_resumo, t_exemplos, t_exercicios, t_gabarito]
+    crew = Crew(
+        agents=agents,
+        tasks=tasks,
+        process=Process.sequential
+    )
+
+    crew.kickoff(input={
+        "tema": tema,
+        "objetivo": objetivo or "não informado"
+    })
+
+    resumo_out = getattr(t_resumo, "output", None) or getattr(t_resumo, "result", "") or ""
+    exemplo_out = getattr(t_exemplos, "output", None) or getattr(t_exemplos, "result", "") or ""
+    exercicio_out = getattr(t_exercicios, "output", None) or getattr(t_exercicios, "result", "") or ""
+    gabarito_out = getattr(t_gabarito, "output", None) or getattr(t_gabarito, "result", "") or ""
