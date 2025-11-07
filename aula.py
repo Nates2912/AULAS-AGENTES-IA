@@ -69,3 +69,22 @@ if executar:
         backstory = "Você confere consistência e explica rapidamente o porquê das resposta",
         llm=llm, verbose = False
     )
+
+    t_resumo = Task(
+        description=(
+            "RESUMO: escreva em português do Brasil um resumo didático sobre {tema} e objetivo {objetivo}"
+            "Inclua: definição (3-4 frases), por que importa (2-3), onde se aplica (2,3) e 4,6 ideias chave,"
+            "com marcadores. Formate em Markdown com título, parágrafos curtos e com 4-6 marcadores"
+        ),
+        agent=agente_resumo,
+        expected_output="Resumo em Markdown com título, parágrafos curtos e 4-6 marcadores (bullets)."
+    )
+    t_exemplos = Task(
+        description=(
+            "EXEMPLOS: produza 4 exemplos curtos e contextualizados sobre {tema}"
+            "Padrão (até 5 linhas cada): Título, cenário, dados/ entrada, como aplicar (1-2)frases, resultados"
+            
+        ),
+        agent=agente_exemplos,
+        expected_output="Lista numerada (1-4) em Markdown com exemplos curtos e completos"
+    )
