@@ -1,236 +1,138 @@
+# ------------------------------------------------------------
+# 📘 Agentes de IA para ensinar GML (versão com controle de erros)
+# ------------------------------------------------------------
 import os
-import re
-import time
 import streamlit as st
 from crewai import Agent, Task, Crew, Process, LLM
-from litellm.exceptions import RateLimitError
+from litellm.exceptions import RateLimitError  # Importa o tipo de erro que ocorre com limite de tokens
 
-# ---------------------------
-# Configuração de página
-# ---------------------------
-st.set_page_config(page_title="Tutor GML com IA", page_icon="🎮", layout="centered")
+# ------------------------------------------------------------
+# INTERFACE STREAMLIT
+# ------------------------------------------------------------
+st.header("🎮 Agentes de Estudo - Linguagem GML (Game Maker Studio 2)")
+st.write("Aprenda GML com agentes inteligentes que geram resumos e exemplos didáticos automaticamente!")
 
-st.title("🎮 Tutor GML com IA — Aprenda passo a passo")
-st.write("Aprenda GML com teoria, exemplos e mini-projetos — e continue cada tema do ponto em que parou!")
+tema = st.text_input("Tema de estudo", placeholder="Ex.: variáveis, loops, eventos, funções")
+nivel = st.text_input("Nível do público (opcional)", placeholder="Ex.: iniciante, intermediário, avançado")
+objetivo = st.text_area("Objetivo (opcional)", placeholder="Ex.: entender a lógica da GML e aplicar em scripts simples")
 
-# ---------------------------
-# Entrada do usuário
-# ---------------------------
-tema = st.text_input("Tópico GML", placeholder="Ex.: variáveis, eventos, scripts, colisões, arrays")
-nivel = st.text_input("Nível (opcional)", placeholder="Ex.: iniciante, intermediário, avançado")
-objetivo = st.text_area("Objetivo (opcional)", placeholder="Ex.: entender como usar variáveis e estruturas de controle no GML")
+executar = st.button("Gerar material sobre GML")
 
-executar = st.button("Iniciar / Continuar tutorial")
-api_key = 'SUA_CHAVE_API'  # ← coloque sua chave do Groq aqui
+api_key = "SUA_CHAVE_API"  # Substitua pela sua chave Groq válida
 
-# ---------------------------
-# Funções de salvamento
-# ---------------------------
-def nome_arquivo(tema):
-    base = re.sub(r'[^a-zA-Z0-9_-]+', '_', tema.strip().lower())
-    return f"progresso_{base}.txt"
+if executar:
+    if not api_key or not tema:
+        st.error("Por favor, informe a API key e o tema de estudo.")
+        st.stop()
 
-def salvar_progresso(tema, passo):
-    if not tema:
-        return
-    with open(nome_arquivo(tema), "w") as f:
-        f.write(str(passo))
-
-def carregar_progresso(tema):
-    if not tema:
-        return 1
-    arquivo = nome_arquivo(tema)
-    if os.path.exists(arquivo):
-        with open(arquivo, "r") as f:
-            try:
-                return int(f.read().strip())
-            except:
-                return 1
-    return 1
-
-# ---------------------------
-# Estado inicial
-# ---------------------------
-if "passo" not in st.session_state:
-    st.session_state.passo = 1
-
-if executar and tema:
-    st.session_state.passo = carregar_progresso(tema)
-
-# ---------------------------
-# Verificação de entrada
-# ---------------------------
-if not tema or not api_key:
-    st.stop()
-
-# ---------------------------
-# Função robusta para chamar o modelo com retries
-# ---------------------------
-def criar_llm(model_name="groq/llama-3.3-70b-versatile"):
-    """Cria um LLM configurado para o Groq."""
-    return LLM(
-        model=model_name,
+    # ------------------------------------------------------------
+    # MODELO DE LINGUAGEM
+    # ------------------------------------------------------------
+    # Alteramos o modelo para uma versão mais leve: "groq/llama-3.1-8b-instant"
+    # Essa versão consome menos tokens e responde mais rápido.
+    # ------------------------------------------------------------
+    llm = LLM(
+        model="groq/llama-3.1-8b-instant",
         api_key=api_key,
         temperature=0.3
     )
 
-def executar_com_retry(funcao, tentativas=3, espera=5):
-    """Executa uma função com tentativas em caso de RateLimitError."""
-    for i in range(tentativas):
-        try:
-            return funcao()
-        except RateLimitError as e:
-            if i < tentativas - 1:
-                st.warning(f"⏳ Limite atingido, aguardando {espera} segundos antes de tentar novamente...")
-                time.sleep(espera)
-            else:
-                st.error("❌ Limite de requisições excedido repetidamente. Trocando para modelo alternativo.")
-                return None
-        except Exception as e:
-            st.error(f"Erro inesperado: {e}")
-            return None
-    return None
+    # ------------------------------------------------------------
+    # DEFINIÇÃO DOS AGENTES
+    # ------------------------------------------------------------
+    agente_resumo = Agent(
+        role="Instrutor(a) de GML",
+        goal=(
+            "Explicar o tema {tema} da linguagem GML de forma simples, "
+            "voltada para o público {nivel}, alinhada ao objetivo {objetivo}. "
+            "Deve incluir definições, usos práticos e boas práticas."
+        ),
+        backstory=(
+            "Você é um instrutor experiente em Game Maker Studio 2 e domina GML. "
+            "Explica os conceitos com clareza e exemplos práticos, "
+            "voltado para iniciantes que estão aprendendo a programar jogos."
+        ),
+        llm=llm,
+        verbose=False  # False = não mostrar logs detalhados no console
+    )
 
-# ---------------------------
-# Criação inicial do LLM
-# ---------------------------
-llm = criar_llm()
+    agente_exemplos = Agent(
+        role="Gerador(a) de Exemplos de Código GML",
+        goal=(
+            "Gerar 3 exemplos práticos e curtos sobre {tema} em GML, "
+            "cada um com título, descrição e código funcional. "
+            "Os exemplos devem demonstrar como o conceito é usado em jogos reais."
+        ),
+        backstory=(
+            "Você é um programador de jogos didático que mostra código GML simples "
+            "e explica o que cada parte faz, contextualizando dentro de um jogo."
+        ),
+        llm=llm,
+        verbose=False
+    )
 
-# ---------------------------
-# Agentes
-# ---------------------------
-agente_teoria = Agent(
-    role="Instrutor(a) de GML",
-    goal=(
-        "Ensinar o conceito de {tema} em GML de forma clara e prática, adequada para {nivel}."
-    ),
-    backstory="Instrutor veterano de GameMaker Studio 2, focado em clareza e exemplos simples.",
-    llm=llm, verbose=False
-)
+    # ------------------------------------------------------------
+    # TAREFAS
+    # ------------------------------------------------------------
+    t_resumo = Task(
+        description=(
+            "Escreva um RESUMO didático sobre {tema} da linguagem GML. "
+            "Inclua: definição (2–3 frases), uso prático, importância no desenvolvimento de jogos "
+            "e 3–5 pontos-chave em forma de lista. "
+            "Formato: Markdown com título e subtítulos."
+        ),
+        agent=agente_resumo,
+        expected_output="Texto em Markdown com título e lista de tópicos."
+    )
 
-agente_exemplos = Agent(
-    role="Criador(a) de Exemplos de Código GML",
-    goal="Gerar exemplos curtos, comentados e úteis de código GML sobre {tema}.",
-    backstory="Cria exemplos reais e diretos de uso do GML.",
-    llm=llm, verbose=False
-)
+    t_exemplos = Task(
+        description=(
+            "Crie 3 exemplos práticos em GML sobre {tema}. "
+            "Cada exemplo deve ter: **título**, breve descrição e código GML formatado. "
+            "Mostre o código entre blocos Markdown com ```gml```."
+        ),
+        agent=agente_exemplos,
+        expected_output="Lista numerada (1–3) com exemplos curtos, cada um com explicação e código."
+    )
 
-agente_projetos = Agent(
-    role="Designer(a) de Mini-Projetos GML",
-    goal="Desenvolver um mini-projeto prático e curto sobre {tema}, com código base e explicação.",
-    backstory="Transforma teoria de GML em mini-projetos práticos para GameMaker Studio 2.",
-    llm=llm, verbose=False
-)
+    # ------------------------------------------------------------
+    # CREW (Orquestração dos agentes)
+    # ------------------------------------------------------------
+    crew = Crew(
+        agents=[agente_resumo, agente_exemplos],
+        tasks=[t_resumo, t_exemplos],
+        process=Process.sequential
+    )
 
-# ---------------------------
-# Tarefas
-# ---------------------------
-t_teoria = Task(
-    description="PASSO 1 - Explique o conceito de {tema} em GML de modo didático e aplicado.",
-    agent=agente_teoria,
-    expected_output="Explicação em Markdown."
-)
-
-t_exemplos = Task(
-    description="PASSO 2 - Crie 3 exemplos curtos e comentados de código GML sobre {tema}.",
-    agent=agente_exemplos,
-    expected_output="Lista de exemplos com ```gml```."
-)
-
-t_projeto = Task(
-    description="PASSO 3 - Desenvolva um mini-projeto prático sobre {tema}, com código base.",
-    agent=agente_projetos,
-    expected_output="Mini-projeto com código GML e explicações."
-)
-
-# ---------------------------
-# Execução das tarefas com tratamento de rate limit
-# ---------------------------
-crew = Crew(
-    agents=[agente_teoria, agente_exemplos, agente_projetos],
-    tasks=[t_teoria, t_exemplos, t_projeto],
-    process=Process.sequential,
-)
-
-def rodar_tarefas():
+    # ------------------------------------------------------------
+    # EXECUÇÃO SEGURA (com tratamento de RateLimitError)
+    # ------------------------------------------------------------
     try:
+        # Tenta rodar o processo normalmente
         crew.kickoff(inputs={
             "tema": tema,
-            "nivel": nivel or "iniciante",
-            "objetivo": objetivo or "aprender GML de forma prática"
+            "nivel": nivel or "não informado",
+            "objetivo": objetivo or "não informado",
         })
-    except RateLimitError:
-        st.warning("⚠️ Limite de tokens atingido — aguardando e tentando novamente...")
-        time.sleep(5)
-        try:
-            crew.kickoff(inputs={
-                "tema": tema,
-                "nivel": nivel or "iniciante",
-                "objetivo": objetivo or "aprender GML de forma prática"
-            })
-        except RateLimitError:
-            st.error("❌ Ainda atingindo o limite. Trocando para modelo alternativo menor...")
-            alt_llm = criar_llm("groq/llama-3.1-8b-instant")
-            for agente in [agente_teoria, agente_exemplos, agente_projetos]:
-                agente.llm = alt_llm
-            crew.kickoff(inputs={
-                "tema": tema,
-                "nivel": nivel or "iniciante",
-                "objetivo": objetivo or "aprender GML de forma prática"
-            })
 
-# Executa com segurança
-executar_com_retry(rodar_tarefas, tentativas=3, espera=6)
+        # Coleta as saídas de cada tarefa
+        resumo_out = getattr(t_resumo, "output", None) or getattr(t_resumo, "result", "") or ""
+        exemplos_out = getattr(t_exemplos, "output", None) or getattr(t_exemplos, "result", "") or ""
 
-# ---------------------------
-# Resultados
-# ---------------------------
-teoria_out = getattr(t_teoria, "output", "") or getattr(t_teoria, "result", "")
-exemplos_out = getattr(t_exemplos, "output", "") or getattr(t_exemplos, "result", "")
-projeto_out = getattr(t_projeto, "output", "") or getattr(t_projeto, "result", "")
+        # Mostra as abas no Streamlit
+        aba_resumo, aba_exemplos = st.tabs(["Resumo", "Exemplos"])
 
-# ---------------------------
-# Interface passo a passo
-# ---------------------------
-st.markdown("---")
-st.subheader(f"🧭 Etapa {st.session_state.passo} de 3 — {tema.title()}")
+        with aba_resumo:
+            st.markdown(resumo_out)
 
-if st.session_state.passo == 1:
-    st.markdown("### 📘 Teoria")
-    st.markdown(teoria_out)
-elif st.session_state.passo == 2:
-    st.markdown("### 💡 Exemplos")
-    st.markdown(exemplos_out)
-elif st.session_state.passo == 3:
-    st.markdown("### 🎯 Mini-Projeto")
-    st.markdown(projeto_out)
-else:
-    st.success(f"🎉 Parabéns! Você concluiu o tutorial de **{tema.title()}** em GML!")
+        with aba_exemplos:
+            st.markdown(exemplos_out)
 
-# ---------------------------
-# Navegação + salvamento
-# ---------------------------
-col1, col2, col3 = st.columns([1, 1, 1])
+    except RateLimitError as e:
+        # Se o limite de tokens for atingido, exibe mensagem amigável
+        st.error("🚫 Limite de requisições da API atingido. Tente novamente em alguns segundos.")
+        st.info("Dica: use um modelo menor ou aguarde 5–10 segundos antes de tentar novamente.")
 
-with col1:
-    if st.session_state.passo > 1:
-        if st.button("⬅️ Voltar"):
-            st.session_state.passo -= 1
-            salvar_progresso(tema, st.session_state.passo)
-            st.rerun()
-
-with col2:
-    st.markdown(f"<div style='text-align:center;font-weight:bold;'>Etapa {st.session_state.passo}/3</div>", unsafe_allow_html=True)
-
-with col3:
-    if st.session_state.passo < 3:
-        if st.button("➡️ Próximo"):
-            st.session_state.passo += 1
-            salvar_progresso(tema, st.session_state.passo)
-            st.rerun()
-    else:
-        if st.button("✅ Finalizar"):
-            st.session_state.passo = 4
-            salvar_progresso(tema, 1)
-            st.success(f"Tutorial de **{tema.title()}** concluído! Progresso reiniciado para próxima revisão.")
-            st.rerun()
+    except Exception as e:
+        # Captura qualquer outro erro inesperado
+        st.error(f"Ocorreu um erro inesperado: {e}")
