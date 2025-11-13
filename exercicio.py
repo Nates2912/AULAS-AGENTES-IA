@@ -1,7 +1,9 @@
 import os
 import re
+import time
 import streamlit as st
 from crewai import Agent, Task, Crew, Process, LLM
+from litellm.exceptions import RateLimitError
 
 # ---------------------------
 # Configuração de página
@@ -25,19 +27,16 @@ api_key = 'SUA_CHAVE_API'  # ← coloque sua chave do Groq aqui
 # Funções de salvamento
 # ---------------------------
 def nome_arquivo(tema):
-    """Gera um nome de arquivo seguro baseado no tema."""
     base = re.sub(r'[^a-zA-Z0-9_-]+', '_', tema.strip().lower())
     return f"progresso_{base}.txt"
 
 def salvar_progresso(tema, passo):
-    """Salva o progresso atual em arquivo baseado no tema."""
     if not tema:
         return
     with open(nome_arquivo(tema), "w") as f:
         f.write(str(passo))
 
 def carregar_progresso(tema):
-    """Carrega o progresso salvo do tema (se existir)."""
     if not tema:
         return 1
     arquivo = nome_arquivo(tema)
@@ -65,13 +64,37 @@ if not tema or not api_key:
     st.stop()
 
 # ---------------------------
-# Configuração do LLM
+# Função robusta para chamar o modelo com retries
 # ---------------------------
-llm = LLM(
-    model="groq/llama-3.3-70b-versatile",
-    api_key=api_key,
-    temperature=0.3
-)
+def criar_llm(model_name="groq/llama-3.3-70b-versatile"):
+    """Cria um LLM configurado para o Groq."""
+    return LLM(
+        model=model_name,
+        api_key=api_key,
+        temperature=0.3
+    )
+
+def executar_com_retry(funcao, tentativas=3, espera=5):
+    """Executa uma função com tentativas em caso de RateLimitError."""
+    for i in range(tentativas):
+        try:
+            return funcao()
+        except RateLimitError as e:
+            if i < tentativas - 1:
+                st.warning(f"⏳ Limite atingido, aguardando {espera} segundos antes de tentar novamente...")
+                time.sleep(espera)
+            else:
+                st.error("❌ Limite de requisições excedido repetidamente. Trocando para modelo alternativo.")
+                return None
+        except Exception as e:
+            st.error(f"Erro inesperado: {e}")
+            return None
+    return None
+
+# ---------------------------
+# Criação inicial do LLM
+# ---------------------------
+llm = criar_llm()
 
 # ---------------------------
 # Agentes
@@ -94,7 +117,7 @@ agente_exemplos = Agent(
 
 agente_projetos = Agent(
     role="Designer(a) de Mini-Projetos GML",
-    goal="Desenvolver um mini-projeto prático e curto sobre {tema} com código base e explicação.",
+    goal="Desenvolver um mini-projeto prático e curto sobre {tema}, com código base e explicação.",
     backstory="Transforma teoria de GML em mini-projetos práticos para GameMaker Studio 2.",
     llm=llm, verbose=False
 )
@@ -120,17 +143,44 @@ t_projeto = Task(
     expected_output="Mini-projeto com código GML e explicações."
 )
 
+# ---------------------------
+# Execução das tarefas com tratamento de rate limit
+# ---------------------------
 crew = Crew(
     agents=[agente_teoria, agente_exemplos, agente_projetos],
     tasks=[t_teoria, t_exemplos, t_projeto],
     process=Process.sequential,
 )
 
-crew.kickoff(inputs={
-    "tema": tema,
-    "nivel": nivel or "iniciante",
-    "objetivo": objetivo or "aprender GML de forma prática"
-})
+def rodar_tarefas():
+    try:
+        crew.kickoff(inputs={
+            "tema": tema,
+            "nivel": nivel or "iniciante",
+            "objetivo": objetivo or "aprender GML de forma prática"
+        })
+    except RateLimitError:
+        st.warning("⚠️ Limite de tokens atingido — aguardando e tentando novamente...")
+        time.sleep(5)
+        try:
+            crew.kickoff(inputs={
+                "tema": tema,
+                "nivel": nivel or "iniciante",
+                "objetivo": objetivo or "aprender GML de forma prática"
+            })
+        except RateLimitError:
+            st.error("❌ Ainda atingindo o limite. Trocando para modelo alternativo menor...")
+            alt_llm = criar_llm("groq/llama-3.1-8b-instant")
+            for agente in [agente_teoria, agente_exemplos, agente_projetos]:
+                agente.llm = alt_llm
+            crew.kickoff(inputs={
+                "tema": tema,
+                "nivel": nivel or "iniciante",
+                "objetivo": objetivo or "aprender GML de forma prática"
+            })
+
+# Executa com segurança
+executar_com_retry(rodar_tarefas, tentativas=3, espera=6)
 
 # ---------------------------
 # Resultados
