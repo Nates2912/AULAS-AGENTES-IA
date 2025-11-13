@@ -16,12 +16,24 @@ st.header("📖Agentes para estudo📖")
 st.write("Informe o tema e gere material para estudar: ")
 
 tema = st.text_input("Terra de estudo", placeholder="Ex.:Algoritimos") #enquanto nao tiver texto, o comando placeholder vai deixar essa mensagem
-objetivo = st.text_input("Objetivo", placeholder="Ex.: Entender Conceitos")
+nivel = st.text_input("Público/nível (opcional)", placeholder="Ex.: iniciante, ensino médio, graduação, profissional")
+objetivo = st.text_area("Objetivo (opcional)", placeholder="Ex.: entender conceitos básicos e aplicar em exercícios simples")
+
+
+# NOVO: toggle para gabarito
+mostrar_gabarito = st.toggle("Gerar e mostrar gabarito (respostas + justificativas)", value=True)
+
 
 executar= st.button("Gerar material")
 api_key = "" #se pega no groq 
 
+
+
 if executar:
+    if not api_key or not tema:
+        st.error("Por favor, informe a API key e o tema de estudo.")
+        st.stop()
+
     llm = LLM(
         model = "groq/llama-3.3-70b-versatile",
         api_key=api_key,
@@ -58,6 +70,9 @@ if executar:
         backstory = "Você cria atividades rápidas que fixam os conceitos essenciais",
         llm=llm, verbose = False
     )
+
+    # Opcional: agente de gabarito (só se toggle estiver ligado)
+if mostrar_gabarito:
     agente_gabarito = Agent(
         role = "Revisor e gabaritor.",
         goal =(
@@ -98,6 +113,8 @@ if executar:
         agent=agente_exercicios,
         expected_output="Lista numerada (1-4) em Markdown com exercícios simples, sem respostas"
     )
+
+if mostrar_gabarito:
     t_gabarito = Task(
         description=(
             "GABARITO: Com base nos EXERCÍCIOS fornecidos no contexto, produza as respostas corretas."
@@ -107,25 +124,55 @@ if executar:
             "Formato: lista numerada (1 a 3) em Markdown."
         ),
         agent=agente_gabarito,
-        expected_output="Lista numerada (1-3) em Markdown com resposta e comentário por exercício"
+        expected_output="Lista numerada (1-3) em Markdown com resposta e comentário por exercício",
         context=[t_exercicios]
     )
 
     #definindo equipe
-    agents = [agente_resumo, agente_exemplos, agente_exercicios, agente_gabarito]
-    tasks = [t_resumo, t_exemplos, t_exercicios, t_gabarito]
+    agents = [agente_resumo, agente_exemplos, agente_exercicios]
+    tasks = [t_resumo, t_exemplos, t_exercicios]
+    if mostrar_gabarito:
+        agents.append(agente_gabarito)
+        tasks.append(t_gabarito)
+
     crew = Crew(
         agents=agents,
         tasks=tasks,
-        process=Process.sequential
+        process=Process.sequential,
     )
 
-    crew.kickoff(input={
+    crew.kickoff(inputs={
         "tema": tema,
-        "objetivo": objetivo or "não informado"
+        "nivel": nivel or "não informado",
+        "objetivo": objetivo or "não informado",
     })
 
+    # ---------------------------
+    # Exibição
+    # ---------------------------
     resumo_out = getattr(t_resumo, "output", None) or getattr(t_resumo, "result", "") or ""
-    exemplo_out = getattr(t_exemplos, "output", None) or getattr(t_exemplos, "result", "") or ""
-    exercicio_out = getattr(t_exercicios, "output", None) or getattr(t_exercicios, "result", "") or ""
-    gabarito_out = getattr(t_gabarito, "output", None) or getattr(t_gabarito, "result", "") or ""
+    exemplos_out = getattr(t_exemplos, "output", None) or getattr(t_exemplos, "result", "") or ""
+    exercicios_out = getattr(t_exercicios, "output", None) or getattr(t_exercicios, "result", "") or ""
+    gabarito_out = ""
+    if mostrar_gabarito:
+        gabarito_out = getattr(t_gabarito, "output", None) or getattr(t_gabarito, "result", "") or ""
+
+    # Abas condicionais
+    if mostrar_gabarito:
+        aba_resumo, aba_exemplos, aba_exercicios, aba_gabarito = st.tabs(
+            ["Resumo", "Exemplos", "Exercícios", "Gabarito"]
+        )
+    else:
+        aba_resumo, aba_exemplos, aba_exercicios = st.tabs(
+            ["Resumo", "Exemplos", "Exercícios"]
+        )
+
+    with aba_resumo:
+        st.markdown(resumo_out)
+    with aba_exemplos:
+        st.markdown(exemplos_out)
+    with aba_exercicios:
+        st.markdown(exercicios_out)
+    if mostrar_gabarito:
+        with aba_gabarito:
+            st.markdown(gabarito_out)
