@@ -72,17 +72,15 @@ if executar:
     )
 
     # Opcional: agente de gabarito (só se toggle estiver ligado)
-if mostrar_gabarito:
-    agente_gabarito = Agent(
-        role = "Revisor e gabaritor.",
-        goal =(
-            "Ler os EXERCÍCIOS sobre {tema} e produzir o GABARITO oficial,"
-            "com respostas corretas e justificativa breve (1-3) por item"
-            "Variar formato (múltipla escolha, V/F, completar, resolução curta)."
-            "Enunciados claros. NÃO incluir respostas"
-        ),
-        backstory = "Você confere consistência e explica rapidamente o porquê das resposta",
-        llm=llm, verbose = False
+    if mostrar_gabarito:
+        agente_gabarito = Agent(
+            role="Revisor(a) e Gabaritador(a)",
+            goal=(
+                "Ler os EXERCÍCIOS sobre {tema} e produzir o GABARITO oficial, "
+                "com respostas corretas e justificativa breve (1–2 frases) por item."
+            ),
+            backstory="Você confere consistência e explica rapidamente o porquê da resposta.",
+            llm=llm, verbose=False
     )
 
     t_resumo = Task(
@@ -114,19 +112,20 @@ if mostrar_gabarito:
         expected_output="Lista numerada (1-4) em Markdown com exercícios simples, sem respostas"
     )
 
-if mostrar_gabarito:
-    t_gabarito = Task(
-        description=(
-            "GABARITO: Com base nos EXERCÍCIOS fornecidos no contexto, produza as respostas corretas."
-            "Para cada item, de: \n"
-            "- Resposta: (letra, valor, solução)\n"
-            "-Comentários: justificativa breve e direta (1-2), citando o conceito-chave"
-            "Formato: lista numerada (1 a 3) em Markdown."
-        ),
-        agent=agente_gabarito,
-        expected_output="Lista numerada (1-3) em Markdown com resposta e comentário por exercício",
-        context=[t_exercicios]
-    )
+    if mostrar_gabarito:
+        t_gabarito = Task(
+            description=(
+                "GABARITO\n"
+                "Com base nos EXERCÍCIOS fornecidos no contexto, produza as respostas corretas dos itens 1–3. "
+                "Para cada item, dê:\n"
+                "- **Resposta:** (letra/valor/solução) \n"
+                "- **Comentário:** justificativa breve e direta (1–2 frases), citando o conceito-chave.\n"
+                "Formato: lista numerada (1 a 3) em Markdown."
+            ),
+            agent=agente_gabarito,
+            expected_output="Lista numerada (1–3) com resposta e comentário por exercício.",
+            context=[t_exercicios]
+        )
 
     #definindo equipe
     agents = [agente_resumo, agente_exemplos, agente_exercicios]
