@@ -16,7 +16,7 @@ objetivo = st.text_area("Objetivo (opcional)", placeholder="Ex.: entender concei
 mostrar_gabarito = st.toggle("Gerar e mostrar gabarito (respostas + justificativas)", value=True)
 
 executar = st.button("Gerar material")
-api_key = 'SUA_CHAVE_API'
+api_key = ''
 
 if executar:
     if not api_key or not tema:
