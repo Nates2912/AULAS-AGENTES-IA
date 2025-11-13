@@ -15,7 +15,7 @@ from crewai import Agent, Task, Crew, Process, LLM #LLM é a sigla para "Large L
 st.header("📖Agentes para estudo📖")
 st.write("Informe o tema e gere material para estudar: ")
 
-tema = st.text_input("Terra de estudo", placeholder="Ex.:Algoritimos") #enquanto nao tiver texto, o comando placeholder vai deixar essa mensagem
+tema = st.text_input("Tema de estudo", placeholder="Ex.:Algoritimos") #enquanto nao tiver texto, o comando placeholder vai deixar essa mensagem
 nivel = st.text_input("Público/nível (opcional)", placeholder="Ex.: iniciante, ensino médio, graduação, profissional")
 objetivo = st.text_area("Objetivo (opcional)", placeholder="Ex.: entender conceitos básicos e aplicar em exercícios simples")
 
