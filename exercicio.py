@@ -18,7 +18,7 @@ objetivo = st.text_area("Objetivo (opcional)", placeholder="Ex.: entender a lóg
 
 executar = st.button("Gerar material sobre GML")
 
-api_key = "SUA_CHAVE_API"  # Substitua pela sua chave Groq válida
+api_key = ""  # Substitua pela sua chave Groq válida
 
 if executar:
     if not api_key or not tema:
